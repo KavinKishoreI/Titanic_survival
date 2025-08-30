@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Titanic Survival Predictor 🚢</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-900 to-indigo-900 flex justify-center items-center min-h-screen text-white p-4">
+  <div class="bg-white/10 backdrop-blur-lg p-8 rounded-2xl shadow-2xl w-full max-w-[500px]">
+    <h1 class="text-3xl font-bold mb-6 text-center">🚢 Titanic Survival Predictor</h1>
+
+    <!-- Q&A box -->
+    <div id="qa-box" class="space-y-6">
+      <div class="text-center mb-4">
+        <div class="text-sm text-blue-200">Question <span id="question-number">1</span> of <span id="total-questions">6</span></div>
+        <div class="w-full bg-gray-700 rounded-full h-2 mt-2">
+          <div id="progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 16.67%"></div>
+        </div>
+      </div>
+      
+      <p id="question" class="text-lg font-medium text-center"></p>
+      
+      <div id="input-container" class="space-y-3">
+        <!-- This will be dynamically populated based on question type -->
+      </div>
+      
+      <button id="next-btn" type="button" class="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-lg w-full font-semibold transition-colors">
+        Next ➡️
+      </button>
+      
+      <button id="back-btn" type="button" class="bg-gray-500 hover:bg-gray-600 px-6 py-3 rounded-lg w-full font-semibold transition-colors hidden">
+        ⬅️ Back
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loading" class="hidden text-center space-y-4">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+      <p class="text-lg">Calculating your survival probability...</p>
+    </div>
+
+    <!-- Result -->
+    <div id="result" class="hidden text-center space-y-4">
+      <h2 class="text-2xl font-bold">Prediction Complete 🎉</h2>
+      <div class="bg-white/20 p-6 rounded-xl">
+        <p class="text-lg mb-2">Your probability of surviving the Titanic is:</p>
+        <p id="probability" class="text-5xl font-extrabold text-green-400 mb-4"></p>
+        <p id="survival-message" class="text-lg font-semibold"></p>
+      </div>
+      <button id="try-again-btn" class="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-lg font-semibold transition-colors">
+        Try Again 🔄
+      </button>
+    </div>
+
+    <!-- Error Display -->
+    <div id="error" class="hidden text-center space-y-4">
+      <div class="bg-red-500/20 border border-red-500 p-4 rounded-xl">
+        <p id="error-message" class="text-red-200 font-semibold"></p>
+      </div>
+      <button id="error-back-btn" class="bg-red-500 hover:bg-red-600 px-6 py-3 rounded-lg font-semibold transition-colors">
+        Go Back
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const questions = [
+      { 
+        key: "pclass", 
+        text: "Which class are you traveling in?", 
+        type: "multiple-choice",
+        options: [
+          { value: 1, label: "First Class 🥇", description: "Luxury accommodations" },
+          { value: 2, label: "Second Class 🥈", description: "Comfortable travel" },
+          { value: 3, label: "Third Class 🥉", description: "Economy travel" }
+        ]
+      },
+      { 
+        key: "sex", 
+        text: "What is your gender?", 
+        type: "multiple-choice",
+        options: [
+          { value: 0, label: "Male 👨", description: "Male passenger" },
+          { value: 1, label: "Female 👩", description: "Female passenger" }
+        ]
+      },
+      { 
+        key: "age", 
+        text: "What is your age?", 
+        type: "number",
+        hint: "Enter your age in years (0-120)",
+        min: 0,
+        max: 120,
+        step: 1
+      },
+      { 
+        key: "fare", 
+        text: "How much did you pay for the ticket? (Fare)", 
+        type: "number",
+        hint: "Enter the ticket price in pounds",
+        min: 0,
+        step: 0.01
+      },
+      { 
+        key: "embarked", 
+        text: "Where did you embark?", 
+        type: "multiple-choice",
+        options: [
+          { value: 0, label: "Southampton 🇬🇧", description: "Port of Southampton, England" },
+          { value: 1, label: "Cherbourg 🇫🇷", description: "Port of Cherbourg, France" },
+          { value: 2, label: "Queenstown 🇮🇪", description: "Port of Queenstown, Ireland" }
+        ]
+      },
+      { 
+        key: "relatives", 
+        text: "How many relatives are with you?", 
+        type: "number",
+        hint: "Count siblings, parents, and children traveling together",
+        min: 0,
+        max: 20,
+        step: 1
+      }
+    ];
+
+    let current = 0;
+    let answers = {};
+
+    function createMultipleChoiceInput(question) {
+      const container = document.createElement('div');
+      container.className = 'space-y-3';
+      
+      question.options.forEach(option => {
+        const optionDiv = document.createElement('div');
+        optionDiv.className = 'flex items-center p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-white/10 transition-colors';
+        
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = question.key;
+        radio.value = option.value;
+        radio.className = 'mr-3';
+        radio.required = true;
+        
+        const label = document.createElement('label');
+        label.className = 'flex-1 cursor-pointer';
+        label.innerHTML = `
+          <div class="font-semibold">${option.label}</div>
+          <div class="text-sm text-blue-200">${option.description}</div>
+        `;
+        
+        optionDiv.appendChild(radio);
+        optionDiv.appendChild(label);
+        
+        // Add click handler for better UX
+        optionDiv.addEventListener('click', () => {
+          radio.checked = true;
+          // Remove active class from all options
+          container.querySelectorAll('.border-gray-300').forEach(opt => {
+            opt.classList.remove('border-blue-400', 'bg-blue-500/20');
+          });
+          // Add active class to selected option
+          optionDiv.classList.add('border-blue-400', 'bg-blue-500/20');
+        });
+        
+        container.appendChild(optionDiv);
+      });
+      
+      return container;
+    }
+
+    function createNumberInput(question) {
+      const container = document.createElement('div');
+      container.className = 'space-y-3';
+      
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'w-full p-3 rounded-lg text-black text-center text-lg';
+      input.placeholder = question.hint || 'Enter value...';
+      input.required = true;
+      
+      if (question.min !== undefined) input.min = question.min;
+      if (question.max !== undefined) input.max = question.max;
+      if (question.step !== undefined) input.step = question.step;
+      
+      const hint = document.createElement('div');
+      hint.className = 'text-sm text-blue-200 text-center';
+      hint.textContent = question.hint || '';
+      
+      container.appendChild(input);
+      container.appendChild(hint);
+      
+      return container;
+    }
+
+    function showQuestion() {
+      const question = questions[current];
+      document.getElementById("question").innerText = question.text;
+      
+      // Clear previous input
+      const inputContainer = document.getElementById("input-container");
+      inputContainer.innerHTML = '';
+      
+      // Create appropriate input based on question type
+      if (question.type === "multiple-choice") {
+        inputContainer.appendChild(createMultipleChoiceInput(question));
+      } else if (question.type === "number") {
+        inputContainer.appendChild(createNumberInput(question));
+      }
+      
+      // Update progress
+      document.getElementById("question-number").innerText = current + 1;
+      document.getElementById("total-questions").innerText = questions.length;
+      const progress = ((current + 1) / questions.length) * 100;
+      document.getElementById("progress-bar").style.width = progress + "%";
+      
+      // Show/hide back button
+      if (current > 0) {
+        document.getElementById("back-btn").classList.remove("hidden");
+      } else {
+        document.getElementById("back-btn").classList.add("hidden");
+      }
+    }
+
+    function getAnswerValue(question) {
+      if (question.type === "multiple-choice") {
+        const selectedRadio = document.querySelector(`input[name="${question.key}"]:checked`);
+        return selectedRadio ? selectedRadio.value : null;
+      } else if (question.type === "number") {
+        const input = document.querySelector(`#input-container input[type="number"]`);
+        return input ? input.value : null;
+      }
+      return null;
+    }
+
+    function validateInput(question) {
+      const value = getAnswerValue(question);
+      
+      if (value === null || value === "") {
+        return "Please select an option or enter a value!";
+      }
+      
+      if (question.type === "number") {
+        const numValue = parseFloat(value);
+        if (isNaN(numValue)) {
+          return "Please enter a valid number!";
+        }
+        if (question.min !== undefined && numValue < question.min) {
+          return `Value must be at least ${question.min}!`;
+        }
+        if (question.max !== undefined && numValue > question.max) {
+          return `Value must be at most ${question.max}!`;
+        }
+      }
+      
+      return null;
+    }
+
+    function showError(message) {
+      document.getElementById("error-message").innerText = message;
+      document.getElementById("qa-box").classList.add("hidden");
+      document.getElementById("error").classList.remove("hidden");
+    }
+
+    function hideAllSections() {
+      document.getElementById("qa-box").classList.add("hidden");
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("result").classList.add("hidden");
+      document.getElementById("error").classList.add("hidden");
+    }
+
+    async function nextQuestion() {
+      const question = questions[current];
+      
+      // Validate input
+      const validationError = validateInput(question);
+      if (validationError) {
+        alert(validationError);
+        return;
+      }
+
+      // Get the answer value
+      const answerValue = getAnswerValue(question);
+      answers[question.key] = answerValue;
+      current++;
+
+      if (current < questions.length) {
+        showQuestion();
+      } else {
+        // Done -> send to Flask
+        hideAllSections();
+        document.getElementById("loading").classList.remove("hidden");
+        
+        try {
+          const res = await axios.post("/predict", answers);
+          
+          if (res.data.error) {
+            showError(res.data.error);
+            return;
+          }
+          
+          // Show result
+          document.getElementById("loading").classList.add("hidden");
+          document.getElementById("result").classList.remove("hidden");
+          document.getElementById("probability").innerText = res.data.probability + "%";
+          
+          const prob = res.data.probability;
+          if (prob > 50) {
+            document.getElementById("survival-message").innerText = "🌟 Congratulations! You likely survived the Titanic.";
+            document.getElementById("survival-message").className = "text-lg font-semibold text-green-300";
+          } else {
+            document.getElementById("survival-message").innerText = "💀 Unfortunately, your chances of survival were low.";
+            document.getElementById("survival-message").className = "text-lg font-semibold text-red-300";
+          }
+        } catch (error) {
+          console.error("Prediction error:", error);
+          showError("Failed to get prediction. Please try again.");
+        }
+      }
+    }
+
+    function previousQuestion() {
+      if (current > 0) {
+        current--;
+        showQuestion();
+      }
+    }
+
+    function resetApp() {
+      current = 0;
+      answers = {};
+      hideAllSections();
+      document.getElementById("qa-box").classList.remove("hidden");
+      showQuestion();
+    }
+
+    // Event listeners
+    document.getElementById("next-btn").addEventListener("click", nextQuestion);
+    document.getElementById("back-btn").addEventListener("click", previousQuestion);
+    document.getElementById("try-again-btn").addEventListener("click", resetApp);
+    document.getElementById("error-back-btn").addEventListener("click", resetApp);
+    
+    // Enter key support
+    document.addEventListener("keypress", function(e) {
+      if (e.key === "Enter" && !document.getElementById("loading").classList.contains("hidden")) {
+        nextQuestion();
+      }
+    });
+
+    // Show first question on page load
+    showQuestion();
+  </script>
+</body>
+</html>
