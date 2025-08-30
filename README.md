@@ -34,14 +34,12 @@ titanic-survival/
 
 ### Installation & Running
 
-1. **Install dependencies**
+1. **Install dependencies** \n
    pip install -r requirements.txt
-
-2. **Run the application**
+2. **Run the application**\n
    python app.py
 
-3. **Open browser**
-   Navigate to: http://127.0.0.1:5000
+3. Navigate to the link
 
 ## 📋 How to Use
 
