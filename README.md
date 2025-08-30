@@ -35,11 +35,14 @@ titanic-survival/
 ### Installation & Running
 
 1. **Install dependencies** \n
-   pip install -r requirements.txt
+   
 2. **Run the application**\n
+   ```
+   pip install -r requirements.txt
    python app.py
+   ```
 
-3. Navigate to the link
+4. Navigate to the link
 
 ## 📋 How to Use
 
